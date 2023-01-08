@@ -16,8 +16,6 @@ app.use(morgan('short'));
 app.use(cors());
 
 async function main() {
-  await mongoose.connect('mongodb://localhost:27017/aram-matches');
-  console.log('Connected to DB');
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
