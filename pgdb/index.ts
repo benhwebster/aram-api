@@ -1,6 +1,16 @@
 import { Pool } from 'pg';
 
-const pool = new Pool();
+const db_config = {
+  user : DB_USER,
+  password : DB_PWD,
+  database : DB_NAME,
+  host : DB_HOST,
+  max : 5, // max number of clients in the pool
+  connectionTimeoutMillis : 5000,
+  idleTimeoutMillis : 30000
+};
+
+const pool = new Pool(db_config);
 
 function sanitizeString(string: string) {
   return string.trim().toLowerCase();
