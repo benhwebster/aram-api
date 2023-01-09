@@ -10,7 +10,7 @@ const db_config = {
   idleTimeoutMillis : 30000
 };
 
-const pool = new Pool(db_config);
+const pool = new Pool();
 
 function sanitizeString(string: string) {
   return string.trim().toLowerCase();
