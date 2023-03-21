@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import api from './riotApi';
@@ -16,6 +16,19 @@ app.use(morgan('short'));
 app.use(cors());
 
 async function main() {
+
+  app.get('/livestats', async (req, res) => {
+    let summonerQuery = req.query.summonerName
+    if (!summonerQuery) {
+      res.sendStatus(400)
+      return
+    }
+    const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery]
+
+    const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
+    const response = await Promise.all(gameInfos)
+    res.json(response)
+  })
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
@@ -105,12 +118,38 @@ async function getPuuid(summonerName: string) {
   return puuid;
 }
 
+async function getSummonerId(summonerName: string) {
+  const summonerId = (await api.getSummonerPuuid(summonerName)).data?.id;
+  if (typeof summonerId !== 'string')
+    throw Error(`Invalid summoner name ${summonerName}`);
+  return summonerId;
+}
+
+async function getActiveGameStats(summonerName: string ) {
+  try {
+    const summonerId = await getSummonerId(summonerName)
+    const gameStats = await api.getActiveGameInfo(summonerId)
+    return {
+      summonerName,
+      gameMode: gameStats.data.gameMode,
+      gameId: gameStats.data.gameId,
+      gameLength: gameStats.data.gameLength,
+      champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId)
+    }
+  } catch (err) {
+    return {
+      summonerName,
+      gameMode: 'INACTIVE'
+    }
+  }
+}
+
 async function pullNewMatchesForSummoner(summonerName: string, puuid: string, timestamp: number = 0) {
   let matches: string[] = [];
   let count = 0;
   let areMoreMatches = true;
   while (areMoreMatches) {
-    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp);
+    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp / 1000);
     if (aramMatchResponse.data.length === 0) {
       areMoreMatches = false;
       break;

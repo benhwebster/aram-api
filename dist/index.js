@@ -29,6 +29,17 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
+        app.get('/livestats', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            let summonerQuery = req.query.summonerName;
+            if (!summonerQuery) {
+                res.sendStatus(400);
+                return;
+            }
+            const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery];
+            const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''));
+            const response = yield Promise.all(gameInfos);
+            res.json(response);
+        }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
@@ -118,13 +129,43 @@ function getPuuid(summonerName) {
         return puuid;
     });
 }
+function getSummonerId(summonerName) {
+    var _a;
+    return __awaiter(this, void 0, void 0, function* () {
+        const summonerId = (_a = (yield riotApi_1.default.getSummonerPuuid(summonerName)).data) === null || _a === void 0 ? void 0 : _a.id;
+        if (typeof summonerId !== 'string')
+            throw Error(`Invalid summoner name ${summonerName}`);
+        return summonerId;
+    });
+}
+function getActiveGameStats(summonerName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const summonerId = yield getSummonerId(summonerName);
+            const gameStats = yield riotApi_1.default.getActiveGameInfo(summonerId);
+            return {
+                summonerName,
+                gameMode: gameStats.data.gameMode,
+                gameId: gameStats.data.gameId,
+                gameLength: gameStats.data.gameLength,
+                champion: gameStats.data.participants.find((participant) => summonerId === participant.summonerId)
+            };
+        }
+        catch (err) {
+            return {
+                summonerName,
+                gameMode: 'INACTIVE'
+            };
+        }
+    });
+}
 function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
     return __awaiter(this, void 0, void 0, function* () {
         let matches = [];
         let count = 0;
         let areMoreMatches = true;
         while (areMoreMatches) {
-            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp);
+            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp / 1000);
             if (aramMatchResponse.data.length === 0) {
                 areMoreMatches = false;
                 break;
